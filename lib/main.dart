@@ -2,96 +2,86 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:local_audio_scan/local_audio_scan.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:provider/provider.dart';
+import 'player_state.dart';
+import 'now_playing_screen.dart';
+import 'mini_player.dart';
+import 'themes.dart';
+import 'settings_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => PlayerStateModel(),
+      child: const MyApp(),
+    ),
+  );
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Music Player',
+      theme: AppThemes.lightTheme,
+      darkTheme: AppThemes.darkTheme,
+      themeMode: ThemeMode.system, // Automatically switch theme based on system settings
+      home: const MusicPlayerHome(),
+    );
+  }
 }
 
-class _MyAppState extends State<MyApp> {
-  // Instance of the local audio scanner
+class MusicPlayerHome extends StatefulWidget {
+  const MusicPlayerHome({super.key});
+
+  @override
+  State<MusicPlayerHome> createState() => _MusicPlayerHomeState();
+}
+
+class _MusicPlayerHomeState extends State<MusicPlayerHome> {
   final _localAudioScanner = LocalAudioScanner();
-
-  // Instance of the audio player
   final _audioPlayer = AudioPlayer();
-
-  // List to hold the scanned audio tracks
   List<AudioTrack> _audioTracks = [];
-
-  // Flag to indicate if the app is currently scanning for audio files
   bool _isLoading = false;
-
-  // Status message to display to the user
-  String _status = 'Tap the button to scan for audio files.';
-
-  // Path of the currently playing audio track
-  String? _currentlyPlaying;
-
-  // Current state of the audio player
-  PlayerState _playerState = PlayerState.stopped;
-
-  // Flag to filter out junk audio files
-  bool _filterJunkAudio = true;
 
   @override
   void initState() {
     super.initState();
-    // Listen to player state changes
+    final playerState = Provider.of<PlayerStateModel>(context, listen: false);
     _audioPlayer.onPlayerStateChanged.listen((state) {
       if (mounted) {
-        setState(() {
-          _playerState = state;
-        });
+        playerState.setIsPlaying(state == PlayerState.playing);
       }
     });
+    _scanAudioFiles(); // Automatically scan for songs on startup
   }
 
   @override
   void dispose() {
-    // Dispose the audio player when the widget is disposed
     _audioPlayer.dispose();
     super.dispose();
   }
 
-  /// Scans for local audio files.
   Future<void> _scanAudioFiles() async {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
-      _status = 'Scanning...';
     });
 
     try {
-      // Request permission to access local audio files
       final hasPermission = await _localAudioScanner.requestPermission();
       if (hasPermission) {
-        // Scan for audio tracks
-        final tracks = await _localAudioScanner.scanTracks(filterJunkAudio: _filterJunkAudio);
+        final tracks = await _localAudioScanner.scanTracks(filterJunkAudio: true); // Filter junk audio by default
         if (mounted) {
           setState(() {
             _audioTracks = tracks;
-            _status = 'Found ${_audioTracks.length} tracks.';
-          });
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _status = 'Permission denied.';
           });
         }
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _status = 'Error: $e';
-        });
-      }
+      // Handle error
     } finally {
       if (mounted) {
         setState(() {
@@ -101,93 +91,78 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  /// Plays the audio track at the given [path].
-  Future<void> _play(String path) async {
-    await _audioPlayer.play(DeviceFileSource(path));
-    if (mounted) {
-      setState(() {
-        _currentlyPlaying = path;
-      });
-    }
-  }
-
-  /// Pauses the currently playing audio track.
-  Future<void> _pause() async {
-    await _audioPlayer.pause();
-    if (mounted) {
-      setState(() {
-        _currentlyPlaying = null;
-      });
-    }
+  Future<void> _play(AudioTrack track) async {
+    final playerState = Provider.of<PlayerStateModel>(context, listen: false);
+    await _audioPlayer.play(DeviceFileSource(track.filePath));
+    playerState.setCurrentTrack(track);
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Music Player'),
-        ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Text(_status),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Filter Junk Audio'),
-                      Switch(
-                        value: _filterJunkAudio,
-                        onChanged: (value) {
-                          setState(() {
-                            _filterJunkAudio = value;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _scanAudioFiles,
-                    child: _isLoading
-                        ? const CircularProgressIndicator()
-                        : const Text('Scan Local Audio'),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _audioTracks.length,
-                itemBuilder: (context, index) {
-                  final track = _audioTracks[index];
-                  final isPlaying = _currentlyPlaying == track.filePath && _playerState == PlayerState.playing;
-                  return ListTile(
-                    leading: track.artwork != null
-                        ? Image.memory(track.artwork as Uint8List, width: 50, height: 50, fit: BoxFit.cover,)
-                        : const Icon(Icons.music_note, size: 50,),
-                    title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis,),
-                    subtitle: Text(track.artist, maxLines: 1, overflow: TextOverflow.ellipsis,),
-                    trailing: IconButton(
-                      icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-                      onPressed: () {
-                        if (isPlaying) {
-                          _pause();
-                        } else {
-                          _play(track.filePath);
-                        }
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+    final playerState = Provider.of<PlayerStateModel>(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Music Player'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
+          )
+        ],
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _audioTracks.length,
+                    itemBuilder: (context, index) {
+                      final track = _audioTracks[index];
+                      final isPlaying = playerState.currentTrack?.filePath == track.filePath && playerState.isPlaying;
+                      return ListTile(
+                        leading: track.artwork != null
+                            ? Image.memory(track.artwork as Uint8List, width: 50, height: 50, fit: BoxFit.cover,)
+                            : const Icon(Icons.music_note, size: 50,),
+                        title: Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis,),
+                        subtitle: Text(track.artist, maxLines: 1, overflow: TextOverflow.ellipsis,),
+                        onTap: () {
+                          _play(track);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const NowPlayingScreen()),
+                          );
+                        },
+                        trailing: IconButton(
+                          icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+                          onPressed: () {
+                            if (isPlaying) {
+                              _audioPlayer.pause();
+                            } else {
+                              _play(track);
+                            }
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                if (playerState.currentTrack != null)
+                  GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const NowPlayingScreen()),
+                        );
+                      },
+                      child: const MiniPlayer()),
+              ],
+            ),
     );
   }
 }
