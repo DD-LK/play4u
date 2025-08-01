@@ -17,7 +17,7 @@ Future<void> main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => PlayerStateModel()),
-        ChangeniofierProvider(create: (context) => ThemeProvider()),
+        ChangeNotifierProvider(create: (context) => ThemeProvider()),
       ],
       child: const MyApp(),
     ),
