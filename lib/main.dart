@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:local_audio_scan/local_audio_scan.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:provider/provider.dart';
 import 'player_state.dart';
 import 'now_playing_screen.dart';
@@ -9,8 +8,12 @@ import 'mini_player.dart';
 import 'themes.dart';
 import 'settings_screen.dart';
 import 'theme_provider.dart';
+import 'audio_handler.dart';
+import 'package:audio_service/audio_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initAudioService();
   runApp(
     MultiProvider(
       providers: [
@@ -47,26 +50,15 @@ class MusicPlayerHome extends StatefulWidget {
 
 class _MusicPlayerHomeState extends State<MusicPlayerHome> {
   final _localAudioScanner = LocalAudioScanner();
-  final _audioPlayer = AudioPlayer();
   List<AudioTrack> _audioTracks = [];
   bool _isLoading = false;
+  late AudioHandler _audioHandler;
 
   @override
   void initState() {
     super.initState();
-    final playerState = Provider.of<PlayerStateModel>(context, listen: false);
-    _audioPlayer.onPlayerStateChanged.listen((state) {
-      if (mounted) {
-        playerState.setIsPlaying(state == PlayerState.playing);
-      }
-    });
+    _audioHandler = AudioService.get<AudioHandler>();
     _scanAudioFiles(); // Automatically scan for songs on startup
-  }
-
-  @override
-  void dispose() {
-    _audioPlayer.dispose();
-    super.dispose();
   }
 
   Future<void> _scanAudioFiles() async {
@@ -98,7 +90,8 @@ class _MusicPlayerHomeState extends State<MusicPlayerHome> {
 
   Future<void> _play(AudioTrack track) async {
     final playerState = Provider.of<PlayerStateModel>(context, listen: false);
-    await _audioPlayer.play(DeviceFileSource(track.filePath));
+    await _audioHandler.setUrl(track.filePath);
+    _audioHandler.play();
     playerState.setCurrentTrack(track);
   }
 
@@ -152,7 +145,7 @@ class _MusicPlayerHomeState extends State<MusicPlayerHome> {
                           icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
                           onPressed: () {
                             if (isPlaying) {
-                              _audioPlayer.pause();
+                              _audioHandler.pause();
                             } else {
                               _play(track);
                             }
