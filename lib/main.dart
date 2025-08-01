@@ -8,11 +8,15 @@ import 'now_playing_screen.dart';
 import 'mini_player.dart';
 import 'themes.dart';
 import 'settings_screen.dart';
+import 'theme_provider.dart';
 
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => PlayerStateModel(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => PlayerStateModel()),
+        ChangeNotifierProvider(create: (context) => ThemeProvider()),
+      ],
       child: const MyApp(),
     ),
   );
@@ -23,11 +27,12 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     return MaterialApp(
       title: 'Music Player',
       theme: AppThemes.lightTheme,
       darkTheme: AppThemes.darkTheme,
-      themeMode: ThemeMode.system, // Automatically switch theme based on system settings
+      themeMode: themeProvider.themeMode,
       home: const MusicPlayerHome(),
     );
   }
@@ -109,7 +114,12 @@ class _MusicPlayerHomeState extends State<MusicPlayerHome> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                MaterialPageRoute(
+                  builder: (context) => ChangeNotifierProvider.value(
+                    value: Provider.of<ThemeProvider>(context),
+                    child: const SettingsScreen(),
+                  ),
+                ),
               );
             },
           )
