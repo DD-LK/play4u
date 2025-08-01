@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:local_audio_scan/local_audio_scan.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:provider/provider.dart';
 import 'player_state.dart';
 import 'now_playing_screen.dart';
@@ -9,13 +8,16 @@ import 'mini_player.dart';
 import 'themes.dart';
 import 'settings_screen.dart';
 import 'theme_provider.dart';
+import 'package:audio_background/audio_background.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AudioBackgroundService.initialize();
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => PlayerStateModel()),
-        ChangeNotifierProvider(create: (context) => ThemeProvider()),
+        ChangeniofierProvider(create: (context) => ThemeProvider()),
       ],
       child: const MyApp(),
     ),
@@ -47,26 +49,13 @@ class MusicPlayerHome extends StatefulWidget {
 
 class _MusicPlayerHomeState extends State<MusicPlayerHome> {
   final _localAudioScanner = LocalAudioScanner();
-  final _audioPlayer = AudioPlayer();
   List<AudioTrack> _audioTracks = [];
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    final playerState = Provider.of<PlayerStateModel>(context, listen: false);
-    _audioPlayer.onPlayerStateChanged.listen((state) {
-      if (mounted) {
-        playerState.setIsPlaying(state == PlayerState.playing);
-      }
-    });
     _scanAudioFiles(); // Automatically scan for songs on startup
-  }
-
-  @override
-  void dispose() {
-    _audioPlayer.dispose();
-    super.dispose();
   }
 
   Future<void> _scanAudioFiles() async {
@@ -98,7 +87,11 @@ class _MusicPlayerHomeState extends State<MusicPlayerHome> {
 
   Future<void> _play(AudioTrack track) async {
     final playerState = Provider.of<PlayerStateModel>(context, listen: false);
-    await _audioPlayer.play(DeviceFileSource(track.filePath));
+    await AudioBackgroundService.play(MediaItem(
+      title: track.title,
+      artist: track.artist,
+      url: track.filePath,
+    ));
     playerState.setCurrentTrack(track);
   }
 
@@ -152,7 +145,7 @@ class _MusicPlayerHomeState extends State<MusicPlayerHome> {
                           icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
                           onPressed: () {
                             if (isPlaying) {
-                              _audioPlayer.pause();
+                              AudioBackgroundService.pause();
                             } else {
                               _play(track);
                             }
