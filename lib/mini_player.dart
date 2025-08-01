@@ -8,7 +8,6 @@ class MiniPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final playerState = Provider.of<PlayerStateModel>(context);
     final audioPlayer = AudioPlayer();
 
     return Container(
