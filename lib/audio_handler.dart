@@ -32,8 +32,12 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
   Future<void> stop() => _player.stop();
 
   @override
-  Future<void> setUrl(String url) {
-    return _player.setUrl(url);
+  Future<void> playMediaItem(MediaItem mediaItem) async {
+    // Your custom implementation to play a media item.
+    // For example, you can use just_audio to play from a URL:
+    await _player.setUrl(mediaItem.id);
+    this.mediaItem.add(mediaItem);
+    await _player.play();
   }
 
   PlaybackState _transformEvent(PlaybackEvent event) {
@@ -50,13 +54,12 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
         MediaAction.seekBackward,
       },
       androidCompactActionIndices: const [0, 1, 3],
-      processingState: const {
+      processingState: {
         ProcessingState.idle: AudioProcessingState.idle,
         ProcessingState.loading: AudioProcessingState.loading,
         ProcessingState.buffering: AudioProcessingState.buffering,
         ProcessingState.ready: AudioProcessingState.ready,
         ProcessingState.completed: AudioProcessingState.completed,
-        ProcessingState.error: AudioProcessingState.error,
       }[_player.processingState]!,
       playing: _player.playing,
       updatePosition: _player.position,

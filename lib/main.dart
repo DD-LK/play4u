@@ -11,9 +11,11 @@ import 'theme_provider.dart';
 import 'audio_handler.dart';
 import 'package:audio_service/audio_service.dart';
 
+late AudioHandler _audioHandler;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initAudioService();
+  _audioHandler = await initAudioService();
   runApp(
     MultiProvider(
       providers: [
@@ -52,12 +54,10 @@ class _MusicPlayerHomeState extends State<MusicPlayerHome> {
   final _localAudioScanner = LocalAudioScanner();
   List<AudioTrack> _audioTracks = [];
   bool _isLoading = false;
-  late AudioHandler _audioHandler;
 
   @override
   void initState() {
     super.initState();
-    _audioHandler = AudioService.get<AudioHandler>();
     _scanAudioFiles(); // Automatically scan for songs on startup
   }
 
@@ -90,8 +90,14 @@ class _MusicPlayerHomeState extends State<MusicPlayerHome> {
 
   Future<void> _play(AudioTrack track) async {
     final playerState = Provider.of<PlayerStateModel>(context, listen: false);
-    await _audioHandler.setUrl(track.filePath);
-    _audioHandler.play();
+    final mediaItem = MediaItem(
+      id: track.filePath,
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+      duration: Duration(milliseconds: track.duration),
+    );
+    await _audioHandler.playMediaItem(mediaItem);
     playerState.setCurrentTrack(track);
   }
 
